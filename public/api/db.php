@@ -13,33 +13,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-$dbHost = getenv('DB_HOST') ?: 'localhost';
-$dbName = getenv('DB_NAME') ?: '';
-$dbUser = getenv('DB_USER') ?: '';
+$dbHost = getenv('DB_HOST') ?: '127.0.0.1';
+$dbName = getenv('DB_NAME') ?: 'u238683373_rejoy_solar';
+$dbUser = getenv('DB_USER') ?: 'u238683373_rejoy_solar';
 $dbPass = getenv('DB_PASS') ?: '';
 
-// Search in .env files if not found in environment
-if (!$dbName) {
-    $searchPaths = [
-        __DIR__ . '/../../.env',
-        __DIR__ . '/../.env',
-        dirname(__DIR__, 2) . '/.env'
-    ];
-    foreach ($searchPaths as $path) {
-        if (file_exists($path)) {
-            $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-            foreach ($lines as $line) {
-                if (preg_match('/^\s*DB_HOST\s*=\s*(.+)$/', $line, $m)) $dbHost = trim($m[1], "\"' \r\n");
-                if (preg_match('/^\s*DB_NAME\s*=\s*(.+)$/', $line, $m)) $dbName = trim($m[1], "\"' \r\n");
-                if (preg_match('/^\s*DB_USER\s*=\s*(.+)$/', $line, $m)) $dbUser = trim($m[1], "\"' \r\n");
-                if (preg_match('/^\s*DB_PASS\s*=\s*(.+)$/', $line, $m)) $dbPass = trim($m[1], "\"' \r\n");
-            }
-            if ($dbName) break;
+// Search in .env files if custom credentials exist
+$searchPaths = [
+    __DIR__ . '/.env',
+    __DIR__ . '/../.env',
+    __DIR__ . '/../../.env',
+    dirname(__DIR__, 2) . '/.env'
+];
+foreach ($searchPaths as $path) {
+    if (file_exists($path)) {
+        $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        foreach ($lines as $line) {
+            if (preg_match('/^\s*DB_HOST\s*=\s*(.+)$/', $line, $m)) $dbHost = trim($m[1], "\"' \r\n");
+            if (preg_match('/^\s*DB_NAME\s*=\s*(.+)$/', $line, $m)) $dbName = trim($m[1], "\"' \r\n");
+            if (preg_match('/^\s*DB_USER\s*=\s*(.+)$/', $line, $m)) $dbUser = trim($m[1], "\"' \r\n");
+            if (preg_match('/^\s*DB_PASS\s*=\s*(.+)$/', $line, $m)) $dbPass = trim($m[1], "\"' \r\n");
         }
+        if ($dbName && $dbPass) break;
     }
 }
 
-if (!$dbName) {
+$pdo = null;
+$candidateDbs = array_unique(array_filter([$dbName, 'u238683373_rejoy_solar', 'solarpulse_erp']));
+foreach ($candidateDbs as $candidateDb) {
+    try {
+        $pdo = new PDO("mysql:host={$dbHost};dbname={$candidateDb};charset=utf8mb4", $dbUser, $dbPass, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_TIMEOUT => 5
+        ]);
+        $dbName = $candidateDb;
+        break;
+    } catch (PDOException $e) {
+        // Continue to next candidate
+    }
+}
+
+if (!$pdo) {
     echo json_encode([
         'status' => 'STANDBY',
         'message' => 'The ERP is operating in high-performance local persistence mode with complete JSON backup/restore tools.',
@@ -48,16 +63,9 @@ if (!$dbName) {
     exit;
 }
 
-try {
-    $pdo = new PDO("mysql:host={$dbHost};dbname={$dbName};charset=utf8mb4", $dbUser, $dbPass, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_TIMEOUT => 5
-    ]);
-
-    echo json_encode([
-        'status' => 'CONNECTED',
-        'database' => $dbName,
+echo json_encode([
+    'status' => 'CONNECTED',
+    'database' => $dbName,
         'host' => $dbHost,
         'message' => 'Hostinger MySQL database connection successful.'
     ]);

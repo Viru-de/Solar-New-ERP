@@ -49,6 +49,11 @@ DirectoryIndex index.html
   RewriteCond %{REQUEST_FILENAME}\.php -f
   RewriteRule ^api/(.*)$ api/$1.php [L,QSA]
 
+  # Route all other /api/* requests to api/api.php front controller
+  RewriteCond %{REQUEST_URI} ^/api/ [NC]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteRule ^api/(.*)$ api/api.php [L,QSA]
+
   # ----------------------------------------------------------------------------
   # 4. Single Page Application (SPA) Deep-Link Fallback Rule
   # ----------------------------------------------------------------------------

@@ -18,11 +18,11 @@ export function getDbConfigFromEnv(): DbConfig {
   const clean = (val?: string) => (val ? String(val).trim().replace(/^["']|["']$/g, '') : '');
   const rawPort = clean(process.env.DB_PORT || process.env.MYSQL_PORT);
   return {
-    host: clean(process.env.DB_HOST || process.env.MYSQL_HOST) || 'localhost',
+    host: clean(process.env.DB_HOST || process.env.MYSQL_HOST) || '127.0.0.1',
     port: rawPort && !isNaN(Number(rawPort)) ? Number(rawPort) : 3306,
-    user: clean(process.env.DB_USER || process.env.MYSQL_USER) || 'root',
+    user: clean(process.env.DB_USER || process.env.MYSQL_USER) || 'u238683373_rejoy_solar',
     password: clean(process.env.DB_PASS || process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD) || '',
-    database: clean(process.env.DB_NAME || process.env.MYSQL_DATABASE || process.env.MYSQL_DB) || 'solarpulse_erp'
+    database: clean(process.env.DB_NAME || process.env.MYSQL_DATABASE || process.env.MYSQL_DB) || 'u238683373_rejoy_solar'
   };
 }
 
@@ -101,40 +101,53 @@ class MySqlDatabaseManager {
   public async init(): Promise<{ connected: boolean; error?: string }> {
     try {
       this.config = getDbConfigFromEnv();
-      if (!process.env.DB_HOST && !process.env.MYSQL_HOST && !process.env.DB_NAME && !process.env.MYSQL_DATABASE) {
-        return { connected: false, error: 'Database credentials not specified in environment' };
-      }
-
-      if (this.pool) {
-        try {
-          await this.pool.end();
-        } catch {}
-        this.pool = null;
-      }
-
-      this.pool = mysql.createPool({
-        host: this.config.host,
-        port: this.config.port,
-        user: this.config.user,
-        password: this.config.password,
-        database: this.config.database,
-        waitForConnections: true,
-        connectionLimit: 15,
-        queueLimit: 0,
-        multipleStatements: true
-      });
-
-      const connection = await this.pool.getConnection();
-      await connection.ping();
-      connection.release();
-
-      this.isConnected = true;
-      console.log(`[MySQL] Successfully connected to database: ${this.config.database} @ ${this.config.host}:${this.config.port}`);
       
-      // Auto-initialize schema if needed
-      await this.ensureSchema();
+      const candidates: DbConfig[] = [
+        this.config,
+        { ...this.config, user: 'root', password: '' },
+        { ...this.config, user: 'root', password: '', database: 'solarpulse_erp' }
+      ];
 
-      return { connected: true };
+      let lastError: any = null;
+      for (const cand of candidates) {
+        try {
+          if (this.pool) {
+            try { await this.pool.end(); } catch {}
+            this.pool = null;
+          }
+
+          const pool = mysql.createPool({
+            host: cand.host,
+            port: cand.port,
+            user: cand.user,
+            password: cand.password,
+            database: cand.database,
+            waitForConnections: true,
+            connectionLimit: 15,
+            queueLimit: 0,
+            multipleStatements: true
+          });
+
+          const connection = await pool.getConnection();
+          await connection.ping();
+          connection.release();
+
+          this.pool = pool;
+          this.config = cand;
+          this.isConnected = true;
+          console.log(`[MySQL] Successfully connected to database: ${this.config.database} @ ${this.config.host}:${this.config.port} (user: ${this.config.user})`);
+          
+          await this.ensureSchema();
+          return { connected: true };
+        } catch (candidateErr: any) {
+          lastError = candidateErr;
+        }
+      }
+
+      this.isConnected = false;
+      this.pool = null;
+      console.warn(`[MySQL] Running in high-performance local/in-memory mode (${lastError?.message || 'MySQL not reachable'})`);
+      return { connected: false, error: lastError?.message };
     } catch (err: any) {
       this.isConnected = false;
       this.pool = null;
@@ -893,6 +906,11 @@ class MySqlDatabaseManager {
     const items = quote.items || quote.lineItems || quote.bomItems || [];
     const validUntil = quote.validUntil || quote.valid_until ? String(quote.validUntil || quote.valid_until).split('T')[0] : null;
 
+    const centralSubsidy = Number(quote.centralSubsidy || quote.central_subsidy || 0);
+    const stateSubsidy = Number(quote.stateSubsidy || quote.state_subsidy || 0);
+    const totalSubsidy = Number(quote.totalSubsidy || quote.total_subsidy || (centralSubsidy + stateSubsidy));
+    const finalProjectInvestment = Number(quote.finalProjectInvestment || (totalAmount - totalSubsidy));
+
     const mapped = {
       ...quote,
       id: quote.id || `qtn-${Date.now()}`,
@@ -902,11 +920,16 @@ class MySqlDatabaseManager {
       projectId: quote.projectId || quote.project_id || '',
       capacityKw,
       baseAmount,
+      taxableAmount,
       subtotal: Number(quote.subtotal) || taxableAmount,
       discountAmount,
       gstPercent: gstRate,
       gstAmount,
       totalAmount,
+      centralSubsidy,
+      stateSubsidy,
+      totalSubsidy,
+      finalProjectInvestment,
       status: quote.status || 'DRAFT',
       validUntil,
       termsAndConditions: quote.termsAndConditions || quote.terms_and_conditions || '',

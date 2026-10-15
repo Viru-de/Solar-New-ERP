@@ -195,6 +195,33 @@
   ],
   "customers": [
     {
+      "id": "cust-test-1792059817383",
+      "name": "Production Audit Customer Ltd",
+      "phone": "9825099999",
+      "email": "audit@example.com",
+      "password": "scrypt$448e8890437d71420f4762507f9f4330$8a9778cf0160bf4c2b758499f4aaafcbbfa45e6ec2bf44644594a604da445e2701b556b7bb93e858338d9ebd2848cfb64dea4d566c76c7aa86ba6517731e1e7e",
+      "customerCode": "cust-test-1792059817383",
+      "customer_code": "cust-test-1792059817383",
+      "companyName": "",
+      "company_name": "",
+      "customerType": "Residential",
+      "customer_type": "Residential",
+      "siteAddress": "",
+      "site_address": "",
+      "city": "",
+      "state": "Gujarat",
+      "pincode": "",
+      "gstNumber": "",
+      "gst_number": "",
+      "electricityConsumerNo": "",
+      "electricity_consumer_no": "",
+      "sanctionedLoadKw": 0,
+      "sanctioned_load_kw": 0,
+      "status": "ACTIVE",
+      "activeProjectId": null,
+      "active_project_id": null
+    },
+    {
       "name": "Test Solar Enterprise",
       "phone": "+91 99988 77665",
       "email": "test.solar@enterprise.com",
@@ -347,6 +374,32 @@
     }
   ],
   "leads": [
+    {
+      "customerName": "Test Lead",
+      "phone": "+91 97777 66666",
+      "email": "test@lead.com",
+      "id": "lead-1792057811049",
+      "createdAt": "2026-10-15T09:50:11.049Z",
+      "customer_name": "Test Lead",
+      "companyName": "",
+      "company_name": "",
+      "address": "",
+      "city": "",
+      "solarCapacityKw": 0,
+      "solar_capacity_kw": 0,
+      "estimatedValue": 0,
+      "estimated_value": 0,
+      "source": "Website",
+      "assignedSalespersonId": "",
+      "assigned_salesperson_id": "",
+      "assignedSalespersonName": "",
+      "assigned_salesperson_name": "",
+      "status": "NEW",
+      "notes": "",
+      "nextFollowUpDate": null,
+      "next_follow_up_date": null,
+      "created_at": "2026-10-15T09:50:11.049Z"
+    },
     {
       "id": "lead-1",
       "customerName": "Shree Ram Plastics",
@@ -6417,6 +6470,31 @@
   "surveys": [],
   "quotations": [
     {
+      "id": "quote-audit-1792059817428",
+      "capacityKw": 5,
+      "baseProjectPrice": 300000,
+      "discountAmount": 10000,
+      "gstRate": 13.8,
+      "centralSubsidy": 78000,
+      "stateSubsidy": 0,
+      "quotationNumber": "QTN-1792059817429",
+      "customerId": "",
+      "customerName": "Customer",
+      "projectId": "",
+      "baseAmount": 300000,
+      "taxableAmount": 290000,
+      "subtotal": 290000,
+      "gstPercent": 13.8,
+      "gstAmount": 40020,
+      "totalAmount": 330020,
+      "totalSubsidy": 78000,
+      "finalProjectInvestment": 252020,
+      "status": "DRAFT",
+      "validUntil": null,
+      "termsAndConditions": "",
+      "items": []
+    },
+    {
       "id": "quote-audit-1791969728959",
       "capacityKw": 5,
       "baseProjectPrice": 300000,
@@ -7450,6 +7528,20 @@
   ],
   "products": [
     {
+      "id": "prod-solar-1792059817428",
+      "name": "540W Mono PERC Solar Panel",
+      "currentStock": 40,
+      "unitPrice": 12500,
+      "sku": "prod-solar-1792059817428",
+      "category": "Solar Panels",
+      "brand": "",
+      "unit": "NOS",
+      "hsnCode": "",
+      "gstRate": 18,
+      "reorderLevel": 5,
+      "status": "ACTIVE"
+    },
+    {
       "id": "prod-solar-1791969728958",
       "name": "540W Mono PERC Solar Panel",
       "currentStock": 40,
@@ -8379,6 +8471,23 @@
   ],
   "sales_invoices": [
     {
+      "id": "inv-test-1792057697734",
+      "invoiceNumber": "INV-1792057697743",
+      "customerName": "",
+      "invoiceDate": "2026-10-15",
+      "subtotal": 0,
+      "taxAmount": 18000,
+      "totalAmount": 0,
+      "status": "ISSUED",
+      "items": [],
+      "projectId": "",
+      "customerId": "",
+      "dueDate": null,
+      "gstAmount": 0,
+      "ewayBillNumber": "",
+      "notes": ""
+    },
+    {
       "id": "inv-1",
       "invoiceNumber": "INV-2026-001",
       "invoiceType": "TAX_INVOICE",
@@ -8529,6 +8638,12 @@
   ],
   "stock_movements": [
     {
+      "productId": "prod-solar-1792059817428",
+      "movementType": "OUT",
+      "quantity": 10,
+      "referenceNumber": "REF-OUT-001"
+    },
+    {
       "productId": "prod-solar-1791969728958",
       "movementType": "OUT",
       "quantity": 10,
@@ -8661,6 +8776,14 @@
   ],
   "acl_audit_logs": [],
   "acl_config": [],
-  "settings": [],
+  "settings": [
+    {
+      "companyName": "Rejoy Solar Power Pvt. Ltd.",
+      "companyAddress": "Ahmedabad, Gujarat",
+      "companyPhone": "+91 98250 00000",
+      "currencySymbol": "₹",
+      "taxRatePercent": 18
+    }
+  ],
   "workforce_locations": []
 }

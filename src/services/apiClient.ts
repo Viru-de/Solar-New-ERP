@@ -197,16 +197,20 @@ class ApiClient {
       headers['Content-Type'] = 'application/json';
     }
     const res = await fetch(url, { ...options, headers });
+    const contentType = res.headers.get('content-type') || '';
     let json: any = null;
     try {
       json = await res.json();
     } catch {
-      // Non-JSON or empty
+      // Non-JSON or empty body
     }
     if (!res.ok) {
       throw new Error(json?.message || json?.error || `HTTP ${res.status}: ${res.statusText}`);
     }
-    if (json && json.success === false) {
+    if (!json || typeof json !== 'object' || (!contentType.includes('application/json') && !json.success)) {
+      throw new Error(`API endpoint "${endpoint}" returned a non-JSON response (${contentType || 'non-JSON'}). Check server routing and API deployment.`);
+    }
+    if (json.success === false) {
       throw new Error(json.message || json.error || 'API operation failed');
     }
     return json;
@@ -215,7 +219,10 @@ class ApiClient {
   // --- Customers ---
   async getCustomers(): Promise<any[]> {
     const json = await this.request<any>('/customers');
-    return Array.isArray(json?.data) ? json.data : [];
+    if (!json || !Array.isArray(json.data)) {
+      throw new Error('API /customers response did not contain customer data array');
+    }
+    return json.data;
   }
 
   async saveCustomer(cust: any): Promise<any> {

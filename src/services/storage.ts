@@ -3102,62 +3102,66 @@ class StorageService {
         boms, warehouses, settings, notifications
       ] = results;
 
-      if (customers.status === 'fulfilled' && Array.isArray(customers.value)) {
+      if (customers.status === 'fulfilled' && Array.isArray(customers.value) && customers.value.length > 0) {
         this.set(STORAGE_KEYS.CUSTOMERS, customers.value);
       }
-      if (leads.status === 'fulfilled' && Array.isArray(leads.value)) {
+      if (leads.status === 'fulfilled' && Array.isArray(leads.value) && leads.value.length > 0) {
         this.set(STORAGE_KEYS.LEADS, leads.value);
       }
-      if (projects.status === 'fulfilled' && Array.isArray(projects.value)) {
+      if (projects.status === 'fulfilled' && Array.isArray(projects.value) && projects.value.length > 0) {
         this.set(STORAGE_KEYS.PROJECTS, projects.value);
       }
-      if (quotations.status === 'fulfilled' && Array.isArray(quotations.value)) {
+      if (quotations.status === 'fulfilled' && Array.isArray(quotations.value) && quotations.value.length > 0) {
         this.set(STORAGE_KEYS.QUOTATIONS, quotations.value);
       }
-      if (products.status === 'fulfilled' && Array.isArray(products.value)) {
+      if (products.status === 'fulfilled' && Array.isArray(products.value) && products.value.length > 0) {
         this.set(STORAGE_KEYS.PRODUCTS, products.value);
       }
-      if (employees.status === 'fulfilled' && Array.isArray(employees.value)) {
+      if (employees.status === 'fulfilled' && Array.isArray(employees.value) && employees.value.length > 0) {
         this.set(STORAGE_KEYS.EMPLOYEES, employees.value);
       }
-      if (payments.status === 'fulfilled' && Array.isArray(payments.value)) {
+      if (payments.status === 'fulfilled' && Array.isArray(payments.value) && payments.value.length > 0) {
         this.set(STORAGE_KEYS.PAYMENTS, payments.value);
       }
-      if (expenses.status === 'fulfilled' && Array.isArray(expenses.value)) {
+      if (expenses.status === 'fulfilled' && Array.isArray(expenses.value) && expenses.value.length > 0) {
         this.set(STORAGE_KEYS.EXPENSES, expenses.value);
       }
-      if (attendance.status === 'fulfilled' && Array.isArray(attendance.value)) {
+      if (attendance.status === 'fulfilled' && Array.isArray(attendance.value) && attendance.value.length > 0) {
         this.set(STORAGE_KEYS.ATTENDANCE, attendance.value);
       }
-      if (payslips.status === 'fulfilled' && Array.isArray(payslips.value)) {
+      if (payslips.status === 'fulfilled' && Array.isArray(payslips.value) && payslips.value.length > 0) {
         this.set(STORAGE_KEYS.PAYSLIPS, payslips.value);
       }
-      if (serviceTickets.status === 'fulfilled' && Array.isArray(serviceTickets.value)) {
+      if (serviceTickets.status === 'fulfilled' && Array.isArray(serviceTickets.value) && serviceTickets.value.length > 0) {
         this.set(STORAGE_KEYS.SERVICE_TICKETS, serviceTickets.value);
       }
-      if (amcContracts.status === 'fulfilled' && Array.isArray(amcContracts.value)) {
+      if (amcContracts.status === 'fulfilled' && Array.isArray(amcContracts.value) && amcContracts.value.length > 0) {
         this.set(STORAGE_KEYS.AMC_CONTRACTS, amcContracts.value);
       }
-      if (vendors.status === 'fulfilled' && Array.isArray(vendors.value)) {
+      if (vendors.status === 'fulfilled' && Array.isArray(vendors.value) && vendors.value.length > 0) {
         this.set(STORAGE_KEYS.VENDORS, vendors.value);
       }
-      if (purchaseOrders.status === 'fulfilled' && Array.isArray(purchaseOrders.value)) {
+      if (purchaseOrders.status === 'fulfilled' && Array.isArray(purchaseOrders.value) && purchaseOrders.value.length > 0) {
         this.set(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders.value);
       }
-      if (salesInvoices.status === 'fulfilled' && Array.isArray(salesInvoices.value)) {
+      if (salesInvoices.status === 'fulfilled' && Array.isArray(salesInvoices.value) && salesInvoices.value.length > 0) {
         this.set(STORAGE_KEYS.SALES_INVOICES, salesInvoices.value);
       }
-      if (boms.status === 'fulfilled' && Array.isArray(boms.value)) {
+      if (boms.status === 'fulfilled' && Array.isArray(boms.value) && boms.value.length > 0) {
         this.set(STORAGE_KEYS.BOMS, boms.value);
       }
-      if (warehouses.status === 'fulfilled' && Array.isArray(warehouses.value)) {
+      if (warehouses.status === 'fulfilled' && Array.isArray(warehouses.value) && warehouses.value.length > 0) {
         this.set(STORAGE_KEYS.WAREHOUSES, warehouses.value);
       }
       if (settings.status === 'fulfilled' && settings.value && typeof settings.value === 'object') {
         this.set(STORAGE_KEYS.SETTINGS, settings.value);
       }
-      if (notifications.status === 'fulfilled' && Array.isArray(notifications.value)) {
+      if (notifications.status === 'fulfilled' && Array.isArray(notifications.value) && notifications.value.length > 0) {
         this.set(STORAGE_KEYS.NOTIFICATIONS, notifications.value);
+      }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('solarpulse_storage_updated'));
       }
     } catch (e) {
       console.warn('[Storage] Background sync notice:', e);
@@ -3418,7 +3422,11 @@ class StorageService {
 
   // --- Customers ---
   getCustomers(): Customer[] {
-    return this.get<Customer[]>(STORAGE_KEYS.CUSTOMERS, initialCustomers);
+    const list = this.get<Customer[]>(STORAGE_KEYS.CUSTOMERS, initialCustomers);
+    if (!Array.isArray(list) || list.length === 0) {
+      return initialCustomers;
+    }
+    return list;
   }
 
   saveCustomer(customer: Customer): void {
