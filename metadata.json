@@ -1,0 +1,11 @@
+{
+  "name": "Solar ERP + CRM",
+  "description": "Production-quality modern Solar EPC ERP and CRM platform with complete project workflow tracking, CRM, site survey, finance, HRMS, and service management.",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
