@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import type { Request, Response, NextFunction } from 'express';
 
 // Secure Server Secret for HMAC Token Signing
@@ -23,21 +24,31 @@ interface PasswordResetRecord {
 const passwordResetTokens = new Map<string, PasswordResetRecord>();
 
 /**
- * Hash password securely using Node.js crypto.scrypt with a cryptographic salt
+ * Hash password securely using standard Bcrypt (interoperable with PHP password_verify)
  */
 export function hashPassword(password: string): string {
-  const salt = crypto.randomBytes(16).toString('hex');
-  const derivedKey = crypto.scryptSync(password, salt, 64);
-  return `scrypt$${salt}$${derivedKey.toString('hex')}`;
+  return bcrypt.hashSync(password, 10);
 }
 
 /**
- * Verify password against stored hash or perform secure legacy verification
+ * Verify password against stored hash with universal interoperability:
+ * Supports Bcrypt ($2y$, $2a$, $2b$), MD5, SHA-256, legacy scrypt, and plain text
  */
 export function verifyPassword(password: string, storedHash: string): boolean {
   if (!password || !storedHash) return false;
 
-  // Modern scrypt format: scrypt$<salt>$<hash>
+  // 1. Standard Bcrypt format ($2a$, $2b$, $2y$) - interoperable with PHP password_hash / password_verify
+  if (storedHash.startsWith('$2a$') || storedHash.startsWith('$2b$') || storedHash.startsWith('$2y$')) {
+    try {
+      // Normalize $2y$ prefix to $2a$ for bcryptjs compatibility
+      const normalizedHash = storedHash.replace(/^\$2y\$/, '$2a$');
+      return bcrypt.compareSync(password, normalizedHash);
+    } catch {
+      return false;
+    }
+  }
+
+  // 2. Modern/Legacy scrypt format: scrypt$<salt>$<hash>
   if (storedHash.startsWith('scrypt$')) {
     const parts = storedHash.split('$');
     if (parts.length !== 3) return false;
@@ -52,7 +63,7 @@ export function verifyPassword(password: string, storedHash: string): boolean {
     }
   }
 
-  // SHA256 format if present
+  // 3. SHA256 format (sha256$<salt>$<hash> or 64 hex characters)
   if (storedHash.startsWith('sha256$')) {
     const parts = storedHash.split('$');
     if (parts.length !== 3) return false;
@@ -61,9 +72,18 @@ export function verifyPassword(password: string, storedHash: string): boolean {
     const hash = crypto.createHmac('sha256', salt).update(password).digest('hex');
     return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(key));
   }
+  if (storedHash.length === 64 && /^[0-9a-fA-F]{64}$/.test(storedHash)) {
+    const hash = crypto.createHash('sha256').update(password).digest('hex');
+    return hash.toLowerCase() === storedHash.toLowerCase();
+  }
 
-  // Fallback for legacy plain text passwords in demo/initial state:
-  // Using timingSafeEqual to avoid timing side-channels
+  // 4. MD5 format (common in phpMyAdmin password dropdown)
+  if (storedHash.length === 32 && /^[0-9a-fA-F]{32}$/.test(storedHash)) {
+    const hash = crypto.createHash('md5').update(password).digest('hex');
+    return hash.toLowerCase() === storedHash.toLowerCase();
+  }
+
+  // 5. Fallback for plain text passwords in demo / initial seed state
   try {
     const passBuf = Buffer.from(password);
     const storedBuf = Buffer.from(storedHash);

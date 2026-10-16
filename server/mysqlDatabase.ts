@@ -362,8 +362,8 @@ class MySqlDatabaseManager {
         if (Array.isArray(users) && users.length > 0) {
           const u = users[0];
           if (verifyPassword(cleanPass, u.password)) {
-            // Upgrade legacy password hash if needed
-            if (!u.password.startsWith('scrypt$')) {
+            // Upgrade legacy password hash to standard Bcrypt if needed
+            if (!u.password.startsWith('$2a$') && !u.password.startsWith('$2b$') && !u.password.startsWith('$2y$')) {
               const newHash = hashPassword(cleanPass);
               this.pool.query('UPDATE `solar_users` SET `password` = ? WHERE `id` = ?', [newHash, u.id]).catch(() => {});
             }
@@ -385,7 +385,7 @@ class MySqlDatabaseManager {
         if (Array.isArray(customers) && customers.length > 0) {
           const c = customers[0];
           if (verifyPassword(cleanPass, c.password)) {
-            if (!c.password.startsWith('scrypt$')) {
+            if (!c.password.startsWith('$2a$') && !c.password.startsWith('$2b$') && !c.password.startsWith('$2y$')) {
               const newHash = hashPassword(cleanPass);
               this.pool.query('UPDATE `solar_customers` SET `password` = ? WHERE `id` = ?', [newHash, c.id]).catch(() => {});
             }

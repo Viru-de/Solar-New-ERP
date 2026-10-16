@@ -200,39 +200,71 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Initialize session from local storage on mount
+  // Initialize and securely validate session from backend on mount
   useEffect(() => {
-    try {
-      const savedSession = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
-      if (savedSession) {
-        const parsed = JSON.parse(savedSession);
-        if (parsed && parsed.email) {
-          // Re-link with fresh employee record if exists to sync any updated roles
+    let isMounted = true;
+
+    const restoreSession = async () => {
+      try {
+        const token = apiClient.getToken();
+        if (!token) {
+          // No token exists: ensure active session is cleared
+          localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+          if (isMounted) setCurrentUser(null);
+          return;
+        }
+
+        // Validate session token with authoritative backend API (/api/auth/me)
+        const verifiedUser = await apiClient.verifySession();
+        if (verifiedUser && isMounted) {
           const employees = storageService.getEmployees();
-          const cleanEmail = parsed.email.trim().toLowerCase();
+          const cleanEmail = String(verifiedUser.email || '').trim().toLowerCase();
           const linkedEmp = employees.find(
-            e => (e.id && e.id === parsed.id) || (e.email && e.email.trim().toLowerCase() === cleanEmail)
+            e => (e.id && e.id === verifiedUser.id) || (e.email && e.email.trim().toLowerCase() === cleanEmail)
           );
-          if (linkedEmp) {
-            parsed.role = linkedEmp.systemRole || linkedEmp.assignedRole || parsed.role;
-            parsed.name = linkedEmp.name || parsed.name;
-            parsed.department = linkedEmp.department || parsed.department;
-            parsed.designation = linkedEmp.designation || parsed.designation;
-            parsed.employeeId = linkedEmp.employeeCode || parsed.employeeId;
-            parsed.isFieldWorker = linkedEmp.isFieldWorker ?? parsed.isFieldWorker;
+
+          const profile: UserProfile = {
+            id: verifiedUser.id || linkedEmp?.id || `usr-${cleanEmail.replace(/[^a-z0-9]/g, '-')}`,
+            employeeId: verifiedUser.employeeId || linkedEmp?.employeeCode || (verifiedUser.role === 'Customer' ? `CUST-${verifiedUser.customerId || verifiedUser.id}` : 'EMP001'),
+            name: verifiedUser.name || linkedEmp?.name || cleanEmail.split('@')[0],
+            email: cleanEmail,
+            role: (verifiedUser.role || linkedEmp?.systemRole || 'Admin') as UserRole,
+            phone: verifiedUser.phone || linkedEmp?.phone || '+91 98250 11223',
+            department: verifiedUser.department || linkedEmp?.department || (verifiedUser.role === 'Customer' ? 'Client Portal' : 'Administration'),
+            designation: verifiedUser.designation || linkedEmp?.designation || (verifiedUser.role as string),
+            isFieldWorker: Boolean(verifiedUser.isFieldWorker ?? linkedEmp?.isFieldWorker),
+            assignedProjects: []
+          };
+          setCurrentUser(profile);
+          localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, JSON.stringify(profile));
+          storageService.syncFromBackend().catch(() => {});
+        } else {
+          // Token is invalid, expired, or rejected by server: clear auth state
+          if (isMounted) {
+            setCurrentUser(null);
+            localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+            apiClient.setToken(null);
           }
-          setCurrentUser(parsed);
+        }
+      } catch (e) {
+        console.warn('[AuthContext] Session verification notice:', e);
+        if (isMounted) {
+          setCurrentUser(null);
+          localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+          apiClient.setToken(null);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
         }
       }
-    } catch (e) {
-      console.warn('Could not restore auth session:', e);
-    } finally {
-      setLoading(false);
-      // Synchronize database records from MySQL backend on page refresh and startup
-      storageService.syncFromBackend().catch(err => {
-        console.warn('[AuthContext] Initial backend sync notice:', err);
-      });
-    }
+    };
+
+    restoreSession();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Persist active user profile changes
@@ -250,9 +282,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const cleanEmail = email.trim().toLowerCase();
       const cleanPass = pass.trim();
 
-      // 1. Authenticate with backend API (authoritative MySQL + JWT token)
+      if (!cleanEmail || !cleanPass) {
+        throw new Error('Please enter both your email address and password.');
+      }
+
+      // Authenticate with backend API (authoritative MySQL + JWT token verification)
       const apiRes = await apiClient.login(cleanEmail, cleanPass);
-      if (apiRes && apiRes.success && apiRes.user) {
+      if (apiRes && apiRes.success && apiRes.user && apiRes.token) {
         const u = apiRes.user;
         const profile: UserProfile = {
           id: u.id || `usr-${u.email.replace(/[^a-z0-9]/g, '-')}`,
@@ -269,98 +305,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         saveUserProfile(profile);
         storageService.syncFromBackend().catch(() => {});
         return;
-      } else if (apiRes && apiRes.message && apiRes.message.includes('Invalid')) {
-        throw new Error(apiRes.message);
       }
 
-      // 2. Local Fallback for offline mode
-      const employees = storageService.getEmployees();
-      const linkedEmp = employees.find(
-        e => e.email && e.email.trim().toLowerCase() === cleanEmail
-      );
-      const demoAccount = DEMO_ACCOUNTS.find(d => d.email.toLowerCase() === cleanEmail);
-
-      const customers = storageService.getCustomers();
-      const linkedCustomer = customers.find(
-        c => c.email && c.email.trim().toLowerCase() === cleanEmail
-      );
-
-      // Check account activation
-      if (linkedEmp) {
-        if (linkedEmp.loginEnabled === false) {
-          throw new Error('ERP login is not enabled for this employee account. Please contact an administrator.');
-        }
-        if (linkedEmp.accountStatus === 'DISABLED' || linkedEmp.status === 'INACTIVE') {
-          throw new Error('This user account has been disabled by an administrator.');
-        }
-      }
-
-      if (linkedCustomer && linkedCustomer.status === 'CANCELLED') {
-        throw new Error('This customer account is inactive. Please contact an administrator.');
-      }
-
-      // Check bootstrapped owner/admin accounts
-      const isBootstrappedAdmin =
-        cleanEmail === 'admin@rejoysolar.com' ||
-        cleanEmail === 'dasest404@gmail.com' ||
-        cleanEmail === 'kunaldas2442@gmail.com';
-
-      // Validate account existence
-      if (!linkedEmp && !demoAccount && !isBootstrappedAdmin && !linkedCustomer && !cleanEmail.includes('customer')) {
-        throw new Error('Account not found with this email address. Please contact an administrator.');
-      }
-
-      // Check password match (supports customer-specific password, employee default, or standard fallback)
-      const expectedCustomerPassword = linkedCustomer?.password;
-      const isCustomerPassMatch = Boolean(expectedCustomerPassword && cleanPass === expectedCustomerPassword);
-      const isStandardPassMatch = cleanPass === DEMO_DEFAULT_PASSWORD || cleanPass === 'Password@123';
-
-      if (!isCustomerPassMatch && !isStandardPassMatch) {
-        throw new Error('Invalid email or password. Please verify your credentials.');
-      }
-
-      // Construct profile for authenticated user
-      const defaultRole: UserRole = isBootstrappedAdmin
-        ? 'Admin'
-        : linkedCustomer
-          ? 'Customer'
-          : linkedEmp?.systemRole ||
-            linkedEmp?.assignedRole ||
-            demoAccount?.role ||
-            (cleanEmail.includes('customer') ? 'Customer' : 'Admin');
-
-      const isFw = Boolean(
-        linkedEmp?.isFieldWorker ??
-        demoAccount?.isFieldWorker ??
-        [
-          'Site Survey Engineer',
-          'Site Inspector',
-          'Civil Team',
-          'Structure Team',
-          'Installation Team',
-          'Electrical Team',
-          'Technician'
-        ].includes(defaultRole)
-      );
-
-      const authenticatedProfile: UserProfile = {
-        id: linkedCustomer?.id || linkedEmp?.id || demoAccount?.profile.id || ('usr-emp-' + cleanEmail.replace(/[^a-z0-9]/g, '-')),
-        employeeId: linkedCustomer ? `CUST-${linkedCustomer.id}` : (linkedEmp?.employeeCode || linkedEmp?.id || (isBootstrappedAdmin ? 'EMP001' : 'EMP999')),
-        name: isBootstrappedAdmin
-          ? 'Vikram Patel (Lead Admin)'
-          : linkedCustomer?.name || linkedEmp?.name || demoAccount?.name || email.split('@')[0] || 'Solar Team Member',
-        email: cleanEmail,
-        role: defaultRole,
-        phone: linkedCustomer?.phone || linkedEmp?.phone || '+91 98250 11223',
-        department: linkedCustomer ? 'Client Portal' : (isBootstrappedAdmin ? 'Administration' : (linkedEmp?.department || demoAccount?.department || 'Administration')),
-        designation: linkedCustomer ? 'Client Portal Account' : (isBootstrappedAdmin ? 'Managing Director' : (linkedEmp?.designation || demoAccount?.profile.designation || (defaultRole as string))),
-        isFieldWorker: linkedCustomer ? false : isFw,
-        assignedProjects: []
-      };
-
-      saveUserProfile(authenticatedProfile);
-      storageService.syncFromBackend().catch(() => {});
+      // Handle backend failure message
+      const errorMsg = apiRes?.message || 'Invalid email or password. Please verify your credentials.';
+      throw new Error(errorMsg);
     } catch (err: any) {
+      apiClient.setToken(null);
+      localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
       throw new Error(err.message || 'Authentication failed. Please verify credentials.');
     } finally {
       setLoading(false);
@@ -413,8 +365,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       if (currentUser?.id) {
         liveLocationService.sendOffline(currentUser.id, currentUser.email, currentUser.employeeId).catch(() => {});
+        localStorage.removeItem(USER_PROFILE_STORAGE_KEY + currentUser.id);
       }
       await apiClient.logout().catch(() => {});
+      apiClient.setToken(null);
       localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
       setCurrentUser(null);
     } finally {

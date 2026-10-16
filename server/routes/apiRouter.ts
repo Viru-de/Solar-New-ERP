@@ -134,6 +134,15 @@ apiRouter.post('/auth/login', loginRateLimiter, async (req: Request, res: Respon
       customerId: user.customerId
     }, 24);
 
+    const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+    res.cookie('solarpulse_session_token', token, {
+      httpOnly: true,
+      secure: isHttps,
+      sameSite: 'lax',
+      maxAge: 24 * 3600 * 1000,
+      path: '/'
+    });
+
     res.json({
       success: true,
       user,
@@ -180,9 +189,18 @@ apiRouter.post('/auth/customer-login', loginRateLimiter, async (req: Request, re
 
 // Current User Profile Verification
 apiRouter.get('/auth/me', authenticateToken, async (req: Request, res: Response) => {
+  const u: any = req.user || {};
   res.json({
     success: true,
-    user: req.user
+    user: {
+      id: u.userId || u.id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      employeeId: u.employeeId,
+      customerId: u.customerId,
+      isFieldWorker: Boolean(u.isFieldWorker)
+    }
   });
 });
 
@@ -192,6 +210,7 @@ apiRouter.post('/auth/logout', (req: Request, res: Response) => {
   if (token) {
     revokeToken(token);
   }
+  res.clearCookie('solarpulse_session_token', { path: '/' });
   res.json({ success: true, message: 'Session logged out and token invalidated.' });
 });
 

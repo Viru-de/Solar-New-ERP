@@ -43,6 +43,7 @@ class ApiClient {
     const token = this.getToken();
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+      headers['X-Auth-Token'] = token;
     }
     return headers;
   }
@@ -101,17 +102,18 @@ class ApiClient {
     return `${this.baseUrl}/db/dump.sql`;
   }
 
-  // --- Auth & Customer Portal ---
+  // --- Auth & Session Verification ---
 
   async login(email: string, pass: string): Promise<any> {
     try {
       const res = await fetch(`${this.baseUrl}/auth/login`, {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password: pass })
       });
       const data = await res.json();
-      if (data.success && data.token) {
+      if (data && data.success && data.token) {
         this.setToken(data.token);
       }
       return data;
@@ -120,10 +122,38 @@ class ApiClient {
     }
   }
 
+  async verifySession(): Promise<any | null> {
+    const token = this.getToken();
+    if (!token) return null;
+    try {
+      const res = await fetch(`${this.baseUrl}/auth/me`, {
+        method: 'GET',
+        credentials: 'same-origin',
+        headers: this.getHeaders()
+      });
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          this.setToken(null);
+        }
+        return null;
+      }
+      const data = await res.json();
+      if (data && data.success && data.user) {
+        return data.user;
+      }
+      this.setToken(null);
+      return null;
+    } catch {
+      // Return null on failure; caller decides whether to invalidate or retry
+      return null;
+    }
+  }
+
   async logout(): Promise<void> {
     try {
       await fetch(`${this.baseUrl}/auth/logout`, {
         method: 'POST',
+        credentials: 'same-origin',
         headers: this.getHeaders()
       });
     } catch {

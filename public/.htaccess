@@ -21,6 +21,11 @@ DirectoryIndex index.html
 <IfModule mod_rewrite.c>
   RewriteEngine On
 
+  # Pass Authorization header to PHP in FastCGI / Hostinger LiteSpeed
+  RewriteCond %{HTTP:Authorization} .
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+  SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+
   # Define base directory (adjust to /subfolder/ if deployed in a subdirectory)
   RewriteBase /
 
