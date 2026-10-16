@@ -25,9 +25,10 @@ function verifyUserPassword($password, $storedHash) {
 }
 
 $dbHost = getenv('DB_HOST') ?: '127.0.0.1';
-$dbName = getenv('DB_NAME') ?: 'u238683373_rejoy_solar';
-$dbUser = getenv('DB_USER') ?: 'u238683373_rejoy_solar';
-$dbPass = getenv('DB_PASS') ?: '';
+$dbPort = intval(getenv('DB_PORT') ?: 3306);
+$dbName = getenv('DB_NAME') ?: 'u238683373_rj_db_name';
+$dbUser = getenv('DB_USER') ?: 'u238683373_rj_user_name';
+$dbPass = getenv('DB_PASSWORD') ?: (getenv('DB_PASS') ?: '');
 
 // Search in .env files if custom values exist
 $searchPaths = [
@@ -41,19 +42,20 @@ foreach ($searchPaths as $path) {
         $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         foreach ($lines as $line) {
             if (preg_match('/^\s*DB_HOST\s*=\s*(.+)$/', $line, $m)) $dbHost = trim($m[1], "\"' \r\n");
+            if (preg_match('/^\s*DB_PORT\s*=\s*(.+)$/', $line, $m)) $dbPort = intval(trim($m[1], "\"' \r\n"));
             if (preg_match('/^\s*DB_NAME\s*=\s*(.+)$/', $line, $m)) $dbName = trim($m[1], "\"' \r\n");
             if (preg_match('/^\s*DB_USER\s*=\s*(.+)$/', $line, $m)) $dbUser = trim($m[1], "\"' \r\n");
-            if (preg_match('/^\s*DB_PASS\s*=\s*(.+)$/', $line, $m)) $dbPass = trim($m[1], "\"' \r\n");
+            if (preg_match('/^\s*(DB_PASSWORD|DB_PASS)\s*=\s*(.+)$/', $line, $m)) $dbPass = trim($m[2], "\"' \r\n");
         }
         if ($dbName && $dbPass) break;
     }
 }
 
 $pdo = null;
-$candidateDbs = array_unique(array_filter([$dbName, 'u238683373_rejoy_solar', 'solarpulse_erp']));
+$candidateDbs = array_unique(array_filter([$dbName, 'u238683373_rj_db_name', 'solarpulse_erp']));
 foreach ($candidateDbs as $candidateDb) {
     try {
-        $pdo = new PDO("mysql:host={$dbHost};dbname={$candidateDb};charset=utf8mb4", $dbUser, $dbPass, [
+        $pdo = new PDO("mysql:host={$dbHost};port={$dbPort};dbname={$candidateDb};charset=utf8mb4", $dbUser, $dbPass, [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_TIMEOUT => 5

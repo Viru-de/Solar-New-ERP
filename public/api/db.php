@@ -14,9 +14,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 $dbHost = getenv('DB_HOST') ?: '127.0.0.1';
-$dbName = getenv('DB_NAME') ?: 'u238683373_rejoy_solar';
-$dbUser = getenv('DB_USER') ?: 'u238683373_rejoy_solar';
-$dbPass = getenv('DB_PASS') ?: '';
+$dbPort = intval(getenv('DB_PORT') ?: 3306);
+$dbName = getenv('DB_NAME') ?: 'u238683373_rj_db_name';
+$dbUser = getenv('DB_USER') ?: 'u238683373_rj_user_name';
+$dbPass = getenv('DB_PASSWORD') ?: (getenv('DB_PASS') ?: '');
 
 // Search in .env files if custom credentials exist
 $searchPaths = [
@@ -39,10 +40,10 @@ foreach ($searchPaths as $path) {
 }
 
 $pdo = null;
-$candidateDbs = array_unique(array_filter([$dbName, 'u238683373_rejoy_solar', 'solarpulse_erp']));
+$candidateDbs = array_unique(array_filter([$dbName, 'u238683373_rj_db_name', 'solarpulse_erp']));
 foreach ($candidateDbs as $candidateDb) {
     try {
-        $pdo = new PDO("mysql:host={$dbHost};dbname={$candidateDb};charset=utf8mb4", $dbUser, $dbPass, [
+        $pdo = new PDO("mysql:host={$dbHost};port={$dbPort};dbname={$candidateDb};charset=utf8mb4", $dbUser, $dbPass, [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_TIMEOUT => 5

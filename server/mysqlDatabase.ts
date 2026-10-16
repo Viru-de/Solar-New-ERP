@@ -20,9 +20,9 @@ export function getDbConfigFromEnv(): DbConfig {
   return {
     host: clean(process.env.DB_HOST || process.env.MYSQL_HOST) || '127.0.0.1',
     port: rawPort && !isNaN(Number(rawPort)) ? Number(rawPort) : 3306,
-    user: clean(process.env.DB_USER || process.env.MYSQL_USER) || 'u238683373_rejoy_solar',
-    password: clean(process.env.DB_PASS || process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD) || '',
-    database: clean(process.env.DB_NAME || process.env.MYSQL_DATABASE || process.env.MYSQL_DB) || 'u238683373_rejoy_solar'
+    user: clean(process.env.DB_USER || process.env.MYSQL_USER) || 'u238683373_rj_user_name',
+    password: clean(process.env.DB_PASSWORD || process.env.DB_PASS || process.env.MYSQL_PASSWORD) || '',
+    database: clean(process.env.DB_NAME || process.env.MYSQL_DATABASE || process.env.MYSQL_DB) || 'u238683373_rj_db_name'
   };
 }
 
@@ -103,10 +103,11 @@ class MySqlDatabaseManager {
       this.config = getDbConfigFromEnv();
       
       const candidates: DbConfig[] = [
-        this.config,
-        { ...this.config, user: 'root', password: '' },
-        { ...this.config, user: 'root', password: '', database: 'solarpulse_erp' }
+        this.config
       ];
+      if (!this.config.password) {
+        candidates.push({ ...this.config, user: 'root', password: '' });
+      }
 
       let lastError: any = null;
       for (const cand of candidates) {
