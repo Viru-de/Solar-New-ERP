@@ -125,8 +125,8 @@ export const ProjectsView: React.FC = () => {
 
       {/* Projects Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredProjects.map((p) => {
-          const completedStagesCount = p.stages.filter(s => s.status === 'COMPLETED').length;
+        {(filteredProjects || []).map((p) => {
+          const completedStagesCount = (p.stages || []).filter(s => s.status === 'COMPLETED').length;
 
           return (
             <div

@@ -71,18 +71,29 @@ The Solar ERP uses **Firebase Web SDK** for secure client-side authentication:
    ```
    *(Protected automatically: `.htaccess` blocks public web downloads of `.env`).*
 
-### Step 4 (Optional): Hostinger MySQL Database Setup
-If you wish to connect Hostinger MySQL:
-1. In Hostinger hPanel, navigate to **Databases** → **MySQL Databases** and create a new database (e.g., `u123456_solarpulse`).
-2. Click **Enter phpMyAdmin** and import `public_html/api/schema.sql`.
-3. In `public_html/.env`, add:
+### Step 4: Hostinger MySQL Database Setup (Configured for `u238683373_rejoy_solar`)
+The application is pre-configured to connect to your existing Hostinger database:
+- **Database Name:** `u238683373_rejoy_solar`
+- **Database User:** `u238683373_rejoy_solar`
+- **Database Host:** `127.0.0.1` (or `localhost`)
+- **Database Port:** `3306`
+
+1. In Hostinger hPanel File Manager, create or edit `public_html/.env`:
    ```ini
-   DB_HOST=localhost
-   DB_NAME=u123456_solarpulse
-   DB_USER=u123456_solaruser
-   DB_PASS=your_db_password
+   DB_HOST=127.0.0.1
+   DB_PORT=3306
+   DB_NAME=u238683373_rejoy_solar
+   DB_USER=u238683373_rejoy_solar
+   DB_PASS=your_hostinger_db_password_here
    ```
-4. Verify connection status at `https://your-domain.com/api/db.php`.
+2. Verify live connectivity by visiting `https://your-domain.com/api/db.php` or `https://your-domain.com/api/db/status`.
+3. The server-side API (`public_html/api/api.php`) automatically reads your `.env` configuration, maps relational records (including project stages, checklists, and documents), and serves them to the frontend.
+
+### Step 5: Production Error Resolution (`reading 'map'`)
+The issue `TypeError: Cannot read properties of undefined (reading 'map')` has been resolved with three layers of defense:
+1. **API Schema Alignment:** `public/api/api.php` now includes a dedicated `/projects` handler that joins `solar_projects` with `solar_project_stages` and normalizes snake_case columns to TypeScript camelCase, guaranteeing that project `stages` arrays are always populated.
+2. **Settings Response:** `/api/settings` returns the complete system settings configuration instead of an empty array, preventing settings corruption during synchronization.
+3. **Frontend Guarding:** In `src/services/storage.ts`, `this.get<T>()` and `getProjects()` validate and self-heal any project records lacking stages, while `CustomerPortalView`, `CustomerControlCenterView`, `ProjectsView`, and dashboard components use safe optional chaining and fallback empty arrays `(items || []).map(...)`.
 
 ### Step 5: Verify Deployment
 1. Visit `https://your-domain.com/` in your browser. The Solar ERP sign-in interface will appear.

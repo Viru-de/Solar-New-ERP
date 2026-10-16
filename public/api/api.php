@@ -287,10 +287,222 @@ if (preg_match('#/customers(?:/([^/]+))?(?:/password)?$#', $requestUri, $matches
     }
 }
 
-// Generic table handler helper for standard ERP tables
+// Helper to generate standard 15 EPC stages if project has no DB stages
+function getStandardProjectStages($projId) {
+    $stageTemplates = [
+        ['site_survey', 'Technical Site Survey & Feasibility Analysis', 1, 'Engineering', 'Site Survey Engineer'],
+        ['customer_confirmation', 'Quotation Acceptance & Advance Booking', 2, 'Sales', 'Sales Executive'],
+        ['engineering_design', 'Detailed Engineering Design & SLD Approvals', 3, 'Engineering', 'Project Manager'],
+        ['civil_work', 'Roof Preparation & Civil Foundation Work', 4, 'Civil Team', 'Civil Team'],
+        ['structure_fabrication', 'Module Mounting Structure (MMS) Installation', 5, 'Structure Team', 'Structure Team'],
+        ['solar_installation', 'PV Solar Modules Mounting & Stringing', 6, 'Installation Team', 'Installation Team'],
+        ['inverter_installation', 'Grid-Tie Inverter Mounting & AC/DC Cabling', 7, 'Electrical Team', 'Electrical Team'],
+        ['ac_side_electrical', 'ACDB & DCDB Distribution Box Integration', 8, 'Electrical Team', 'Electrical Team'],
+        ['earthing_pits', 'Chemical Earthing Pits & Equipotential Bonding', 9, 'Electrical Team', 'Electrical Team'],
+        ['lightning_arrestor', 'Early Streamer Emission (ESE) Lightning Arrestor', 10, 'Electrical Team', 'Electrical Team'],
+        ['ceig_inspection', 'CEIG / DISCOM Statutory Authority Inspection', 11, 'Operations', 'Project Manager'],
+        ['meter_synchronisation', 'Bi-Directional Net Meter Installation & Grid Sync', 12, 'Operations', 'Project Manager'],
+        ['final_verification', 'Testing, Verification & Plant Commissioning', 13, 'Engineering', 'Technician'],
+        ['final_handover', 'Client Handover & Documentation Package', 14, 'Sales', 'Project Manager'],
+        ['service_amc', 'Annual Maintenance Contract & 24/7 Monitoring', 15, 'Service', 'Service Manager']
+    ];
+
+    $stages = [];
+    foreach ($stageTemplates as $stg) {
+        $stages[] = [
+            'id' => "stg-{$projId}-{$stg[0]}",
+            'stageKey' => $stg[0],
+            'title' => $stg[1],
+            'order' => $stg[2],
+            'department' => $stg[3],
+            'assignedRole' => $stg[4],
+            'assignedEmployeeId' => '',
+            'assignedEmployeeName' => '',
+            'assignedToId' => '',
+            'assignedToName' => '',
+            'status' => ($stg[2] === 1 ? 'IN PROGRESS' : 'NOT STARTED'),
+            'priority' => 'MEDIUM',
+            'checklist' => [
+                ['id' => "chk-{$stg[0]}-1", 'title' => 'Initial milestone inspection', 'completed' => false],
+                ['id' => "chk-{$stg[0]}-2", 'title' => 'Technical validation checklist', 'completed' => false]
+            ],
+            'photos' => [],
+            'documents' => []
+        ];
+    }
+    return $stages;
+}
+
+// -----------------------------------------------------------------------------
+// PROJECTS ROUTE (Full stages join & camelCase mapping)
+// -----------------------------------------------------------------------------
+if (preg_match('#/projects(?:/([^/]+))?$#', $requestUri, $matches)) {
+    $paramId = $matches[1] ?? null;
+
+    if ($method === 'GET') {
+        $projects = [];
+        if ($pdo) {
+            try {
+                $query = "SELECT * FROM solar_projects";
+                if ($paramId) {
+                    $query .= " WHERE id = " . $pdo->quote($paramId) . " OR project_code = " . $pdo->quote($paramId);
+                }
+                $query .= " ORDER BY created_at DESC";
+                $stmt = $pdo->query($query);
+                $projectRows = $stmt->fetchAll();
+
+                // Fetch stages for all projects
+                $stagesByProject = [];
+                try {
+                    $stagesStmt = $pdo->query("SELECT * FROM solar_project_stages ORDER BY stage_order ASC");
+                    $allStages = $stagesStmt->fetchAll();
+                    foreach ($allStages as $s) {
+                        $pId = $s['project_id'];
+                        if (!isset($stagesByProject[$pId])) {
+                            $stagesByProject[$pId] = [];
+                        }
+                        $checklist = json_decode($s['checklist_json'] ?? '[]', true);
+                        $photos = json_decode($s['photos_json'] ?? '[]', true);
+                        $docs = json_decode($s['documents_json'] ?? '[]', true);
+
+                        $stagesByProject[$pId][] = [
+                            'id' => $s['id'],
+                            'stageKey' => $s['stage_key'] ?? 'site_survey',
+                            'title' => $s['title'] ?? 'Milestone Stage',
+                            'order' => (int)($s['stage_order'] ?? 1),
+                            'department' => $s['department'] ?? 'Operations',
+                            'assignedRole' => $s['assigned_role'] ?? 'Project Manager',
+                            'assignedEmployeeId' => $s['assigned_employee_id'] ?? '',
+                            'assignedEmployeeName' => $s['assigned_employee_name'] ?? '',
+                            'assignedToId' => $s['assigned_employee_id'] ?? '',
+                            'assignedToName' => $s['assigned_employee_name'] ?? '',
+                            'status' => $s['status'] ?? 'NOT STARTED',
+                            'priority' => $s['priority'] ?? 'MEDIUM',
+                            'startDate' => $s['start_date'] ?? null,
+                            'dueDate' => $s['due_date'] ?? null,
+                            'completedDate' => $s['completed_date'] ?? null,
+                            'checklist' => is_array($checklist) ? $checklist : [],
+                            'photos' => is_array($photos) ? $photos : [],
+                            'documents' => is_array($docs) ? $docs : [],
+                            'approvedBy' => $s['approved_by'] ?? ''
+                        ];
+                    }
+                } catch (Exception $e) {}
+
+                foreach ($projectRows as $r) {
+                    $pId = $r['id'];
+                    $stages = $stagesByProject[$pId] ?? getStandardProjectStages($pId);
+                    $assignments = json_decode($r['assignments_json'] ?? '[]', true);
+
+                    $projects[] = [
+                        'id' => $pId,
+                        'projectCode' => $r['project_code'] ?? $pId,
+                        'project_code' => $r['project_code'] ?? $pId,
+                        'customerId' => $r['customer_id'] ?? '',
+                        'customer_id' => $r['customer_id'] ?? '',
+                        'customerName' => $r['customer_name'] ?? '',
+                        'customer_name' => $r['customer_name'] ?? '',
+                        'title' => $r['title'] ?? 'Solar Project',
+                        'capacityKw' => (float)($r['capacity_kw'] ?? 0),
+                        'capacity_kw' => (float)($r['capacity_kw'] ?? 0),
+                        'totalValue' => (float)($r['total_value'] ?? 0),
+                        'total_value' => (float)($r['total_value'] ?? 0),
+                        'status' => $r['status'] ?? 'PLANNING',
+                        'currentStageKey' => $r['current_stage_key'] ?? 'site_survey',
+                        'current_stage_key' => $r['current_stage_key'] ?? 'site_survey',
+                        'completionPercentage' => (int)($r['completion_percentage'] ?? 0),
+                        'progressPercentage' => (int)($r['completion_percentage'] ?? 0),
+                        'projectManagerId' => $r['project_manager_id'] ?? '',
+                        'projectManagerName' => $r['project_manager_name'] ?? '',
+                        'siteAddress' => $r['site_address'] ?? '',
+                        'city' => $r['city'] ?? '',
+                        'inverterModel' => $r['inverter_model'] ?? '',
+                        'panelModel' => $r['panel_model'] ?? '',
+                        'structureType' => $r['structure_type'] ?? 'Elevated GI Structure',
+                        'startDate' => $r['start_date'] ?? null,
+                        'expectedCompletionDate' => $r['expected_completion_date'] ?? null,
+                        'actualCompletionDate' => $r['actual_completion_date'] ?? null,
+                        'notes' => $r['notes'] ?? '',
+                        'assignedUsers' => is_array($assignments) ? $assignments : [],
+                        'stages' => $stages
+                    ];
+                }
+            } catch (Exception $e) {}
+        }
+        echo json_encode(['success' => true, 'count' => count($projects), 'data' => $projects]);
+        exit;
+    }
+
+    if ($method === 'POST') {
+        echo json_encode(['success' => true, 'data' => $body]);
+        exit;
+    }
+
+    if ($method === 'DELETE' && $paramId) {
+        if ($pdo) {
+            $stmt = $pdo->prepare("DELETE FROM solar_projects WHERE id = ?");
+            $stmt->execute([$paramId]);
+        }
+        echo json_encode(['success' => true, 'message' => 'Project deleted']);
+        exit;
+    }
+}
+
+// -----------------------------------------------------------------------------
+// SETTINGS ROUTE
+// -----------------------------------------------------------------------------
+if (strpos($requestUri, 'settings') !== false) {
+    $defaultSettings = [
+        'companyName' => 'REJOY SOLAR POWER PVT. LTD',
+        'companyAddress' => 'PLOT NO- 14, STREET NO- 14B, PRAGATI NAGAR, RISALI BHILAI, Chhattisgarh 490006',
+        'companyPhone' => '+91 98250 12345',
+        'companyEmail' => 'rejoysolarpower@gmail.com',
+        'companyGst' => '22AAOCR0748K1Z5',
+        'logoUrl' => '/logo-dark.png',
+        'currencySymbol' => '₹',
+        'taxRatePercent' => 18,
+        'tallyServerUrl' => '',
+        'tallyCompany' => 'Rejoy Solar 2026-27',
+        'tallyStatus' => 'NOT CONFIGURED',
+        'whatsAppStatus' => 'SANDBOX_READY'
+    ];
+
+    if ($method === 'GET') {
+        $settingsData = $defaultSettings;
+        if ($pdo) {
+            try {
+                $stmt = $pdo->prepare("SELECT setting_value FROM solar_system_settings WHERE setting_key = 'global_settings'");
+                $stmt->execute();
+                $val = $stmt->fetchColumn();
+                if ($val) {
+                    $parsed = json_decode($val, true);
+                    if (is_array($parsed)) {
+                        $settingsData = array_merge($settingsData, $parsed);
+                    }
+                }
+            } catch (Exception $e) {}
+        }
+        echo json_encode(['success' => true, 'data' => $settingsData]);
+        exit;
+    }
+
+    if ($method === 'POST') {
+        if ($pdo && !empty($body)) {
+            try {
+                $stmt = $pdo->prepare("INSERT INTO solar_system_settings (setting_key, setting_value, updated_at) VALUES ('global_settings', ?, NOW()) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = NOW()");
+                $stmt->execute([json_encode($body)]);
+            } catch (Exception $e) {}
+        }
+        echo json_encode(['success' => true, 'data' => $body, 'message' => 'Settings saved']);
+        exit;
+    }
+}
+
+// -----------------------------------------------------------------------------
+// GENERIC TABLE ROUTES
+// -----------------------------------------------------------------------------
 $tableRoutes = [
     'leads' => 'solar_leads',
-    'projects' => 'solar_projects',
     'employees' => 'solar_employees',
     'quotations' => 'solar_quotations',
     'payments' => 'solar_payments',
@@ -315,7 +527,27 @@ foreach ($tableRoutes as $route => $tbl) {
             if ($pdo) {
                 try {
                     $stmt = $pdo->query("SELECT * FROM `{$tbl}`");
-                    $rows = $stmt->fetchAll();
+                    $rawRows = $stmt->fetchAll();
+                    // Normalise common snake_case columns to camelCase
+                    foreach ($rawRows as $r) {
+                        $item = $r;
+                        if (isset($r['customer_name'])) $item['customerName'] = $r['customer_name'];
+                        if (isset($r['company_name'])) $item['companyName'] = $r['company_name'];
+                        if (isset($r['solar_capacity_kw'])) $item['solarCapacityKw'] = (float)$r['solar_capacity_kw'];
+                        if (isset($r['estimated_value'])) $item['estimatedValue'] = (float)$r['estimated_value'];
+                        if (isset($r['employee_code'])) $item['employeeCode'] = $r['employee_code'];
+                        if (isset($r['system_role'])) $item['systemRole'] = $r['system_role'];
+                        if (isset($r['assigned_role'])) $item['assignedRole'] = $r['assigned_role'];
+                        if (isset($r['is_field_worker'])) $item['isFieldWorker'] = (bool)$r['is_field_worker'];
+                        if (isset($r['quotation_number'])) $item['quotationNumber'] = $r['quotation_number'];
+                        if (isset($r['total_amount'])) $item['totalAmount'] = (float)$r['total_amount'];
+                        if (isset($r['project_id'])) $item['projectId'] = $r['project_id'];
+                        if (isset($r['customer_id'])) $item['customerId'] = $r['customer_id'];
+                        if (isset($r['due_date'])) $item['dueDate'] = $r['due_date'];
+                        if (isset($r['paid_date'])) $item['paidDate'] = $r['paid_date'];
+                        if (isset($r['payment_mode'])) $item['paymentMode'] = $r['payment_mode'];
+                        $rows[] = $item;
+                    }
                 } catch (Exception $e) {}
             }
             echo json_encode(['success' => true, 'count' => count($rows), 'data' => $rows]);
@@ -330,16 +562,6 @@ foreach ($tableRoutes as $route => $tbl) {
             exit;
         }
     }
-}
-
-// Settings endpoint
-if (strpos($requestUri, 'settings') !== false) {
-    if ($method === 'GET') {
-        echo json_encode(['success' => true, 'data' => []]);
-        exit;
-    }
-    echo json_encode(['success' => true, 'message' => 'Settings saved']);
-    exit;
 }
 
 // Default response

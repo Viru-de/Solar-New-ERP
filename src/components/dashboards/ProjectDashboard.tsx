@@ -174,29 +174,32 @@ export const ProjectDashboard: React.FC = () => {
           </div>
 
           <div className="space-y-3">
-            {projects.slice(0, 5).map(proj => (
-              <div
-                key={proj.id}
-                onClick={() => openCustomerControlCenter(proj.customerId, proj.id)}
-                className="p-3.5 rounded-xl bg-slate-50 hover:bg-amber-50/50 border border-slate-200/80 hover:border-amber-300 transition-all cursor-pointer"
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <div>
-                    <span className="text-xs font-bold text-slate-900 block">{proj.title}</span>
-                    <span className="text-[11px] text-slate-500">{proj.customerName} • {proj.capacityKw} kWp</span>
+            {(projects || []).slice(0, 5).map(proj => {
+              const stageKey = proj.currentStageKey || (proj as any).current_stage_key || 'site_survey';
+              return (
+                <div
+                  key={proj.id}
+                  onClick={() => openCustomerControlCenter(proj.customerId, proj.id)}
+                  className="p-3.5 rounded-xl bg-slate-50 hover:bg-amber-50/50 border border-slate-200/80 hover:border-amber-300 transition-all cursor-pointer"
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div>
+                      <span className="text-xs font-bold text-slate-900 block">{proj.title}</span>
+                      <span className="text-[11px] text-slate-500">{proj.customerName} • {proj.capacityKw} kWp</span>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 uppercase">
+                      Stage: {stageKey.replace(/_/g, ' ')}
+                    </span>
                   </div>
-                  <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 uppercase">
-                    Stage: {proj.currentStageKey.replace(/_/g, ' ')}
-                  </span>
+                  <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden mt-2">
+                    <div
+                      className="bg-amber-500 h-full rounded-full transition-all"
+                      style={{ width: `${Math.min(100, proj.completionPercentage || (proj as any).progressPercentage || 25)}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden mt-2">
-                  <div
-                    className="bg-amber-500 h-full rounded-full transition-all"
-                    style={{ width: `${Math.min(100, proj.completionPercentage || proj.progressPercentage || 25)}%` }}
-                  />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -213,26 +216,29 @@ export const ProjectDashboard: React.FC = () => {
           </div>
 
           <div className="space-y-3">
-            {delayedProjects.map(proj => (
-              <div
-                key={proj.id}
-                onClick={() => openCustomerControlCenter(proj.customerId, proj.id)}
-                className="p-3 rounded-xl bg-amber-50/40 border border-amber-200/80 hover:border-amber-400 transition-all cursor-pointer"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-900 truncate">{proj.title}</span>
-                  <span className="text-[10px] font-bold text-amber-700">Action</span>
+            {(delayedProjects || []).map(proj => {
+              const stageKey = proj.currentStageKey || (proj as any).current_stage_key || 'site_survey';
+              return (
+                <div
+                  key={proj.id}
+                  onClick={() => openCustomerControlCenter(proj.customerId, proj.id)}
+                  className="p-3 rounded-xl bg-amber-50/40 border border-amber-200/80 hover:border-amber-400 transition-all cursor-pointer"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900 truncate">{proj.title}</span>
+                    <span className="text-[10px] font-bold text-amber-700">Action</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-1">
+                    Pending stage milestone verification for {stageKey.replace(/_/g, ' ')}
+                  </p>
+                  <div className="mt-2 text-right">
+                    <span className="text-[11px] font-bold text-amber-700 hover:underline">
+                      Open Control Center →
+                    </span>
+                  </div>
                 </div>
-                <p className="text-[11px] text-slate-600 mt-1">
-                  Pending stage milestone verification for {proj.currentStageKey.replace(/_/g, ' ')}
-                </p>
-                <div className="mt-2 text-right">
-                  <span className="text-[11px] font-bold text-amber-700 hover:underline">
-                    Open Control Center →
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

@@ -25,9 +25,30 @@ export const CustomerPortalView: React.FC = () => {
   const { currentUser } = useAuth();
 
   const projects = useMemo(() => storageService.getProjects(), [refreshTrigger]);
-  const myProject = projects[0]; // ABC Industries 100 kW
+  const myProject = useMemo(() => {
+    if (!projects || projects.length === 0) return null;
+    const custId = (currentUser as any)?.customerId;
+    if (custId) {
+      const found = projects.find(p => p.customerId === custId);
+      if (found) return found;
+    }
+    return projects[0];
+  }, [projects, currentUser]);
 
-  const completedStagesCount = myProject.stages.filter(s => s.status === 'COMPLETED').length;
+  const stagesList = useMemo(() => (myProject?.stages && Array.isArray(myProject.stages)) ? myProject.stages : [], [myProject]);
+  const completedStagesCount = stagesList.filter(s => s.status === 'COMPLETED' || s.status === 'APPROVED').length;
+
+  if (!myProject) {
+    return (
+      <div className="p-8 text-center bg-white rounded-3xl border border-slate-200/80 shadow-2xs space-y-3">
+        <SunMedium className="w-12 h-12 text-amber-500 mx-auto animate-pulse" />
+        <h3 className="text-base font-bold text-slate-800">No Solar Projects Found</h3>
+        <p className="text-xs text-slate-500 max-w-md mx-auto">
+          Your solar EPC project is being provisioned in the system. Once synchronized, you will see your live 15-stage milestone progression here.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
@@ -35,13 +56,13 @@ export const CustomerPortalView: React.FC = () => {
       <div className="bg-gradient-to-r from-amber-500 to-amber-600 rounded-3xl p-6 sm:p-8 text-white shadow-lg relative overflow-hidden">
         <div className="relative z-10 max-w-2xl">
           <span className="text-xs font-bold uppercase tracking-wider bg-white/20 px-2.5 py-1 rounded-full text-white inline-block mb-2">
-            Client Portal • {myProject.projectCode}
+            Client Portal • {myProject.projectCode || 'SOL-2026-001'}
           </span>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
-            Welcome, {currentUser.name}
+            Welcome, {currentUser?.name || 'Solar Client'}
           </h1>
           <p className="text-xs sm:text-sm text-amber-100 mt-1 leading-relaxed">
-            Track real-time EPC installation progress, engineering drawings, milestone invoices, and solar power generation for your {myProject.capacityKw} kW Rooftop Solar Plant.
+            Track real-time EPC installation progress, engineering drawings, milestone invoices, and solar power generation for your {myProject.capacityKw || 100} kW Rooftop Solar Plant.
           </p>
 
           <div className="flex flex-wrap items-center gap-3 mt-5">
@@ -126,7 +147,7 @@ export const CustomerPortalView: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
-          {myProject.stages.slice(0, 6).map((stage) => (
+          {(myProject.stages || []).slice(0, 6).map((stage) => (
             <div
               key={stage.id}
               className={`p-3.5 rounded-xl border flex items-start gap-3 ${

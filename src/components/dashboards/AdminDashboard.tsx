@@ -97,8 +97,8 @@ export const AdminDashboard: React.FC = () => {
       'Commissioned': 0
     };
 
-    projects.forEach(p => {
-      const stage = p.currentStageKey;
+    (projects || []).forEach(p => {
+      const stage = p?.currentStageKey || (p as any)?.current_stage_key;
       if (stage === 'site_survey') counts['Survey']++;
       else if (stage === 'customer_confirmation') counts['Procurement']++;
       else if (stage === 'civil_work' || stage === 'structure_fabrication') counts['Civil/Struct']++;
@@ -287,7 +287,7 @@ export const AdminDashboard: React.FC = () => {
 
         {/* Active Field Workers Horizontal Reel */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
-          {liveLocations.slice(0, 4).map((worker) => (
+          {(liveLocations || []).slice(0, 4).map((worker) => (
             <div
               key={worker.userId}
               onClick={() => setActiveView('live_tracking')}
@@ -441,7 +441,7 @@ export const AdminDashboard: React.FC = () => {
             </span>
           </div>
           <div className="space-y-3.5">
-            {activities.slice(0, 5).map(act => (
+            {(activities || []).slice(0, 5).map(act => (
               <div key={act.id} className="flex items-start gap-3">
                 <div className="w-2 h-2 rounded-full bg-amber-500 mt-1.5 shrink-0" />
                 <div className="flex-1 min-w-0">

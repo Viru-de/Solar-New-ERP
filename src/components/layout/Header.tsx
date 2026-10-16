@@ -124,10 +124,10 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
               </div>
 
               <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
-                {notifications.length === 0 ? (
+                {!notifications || notifications.length === 0 ? (
                   <p className="p-6 text-center text-xs text-slate-400">No notifications yet</p>
                 ) : (
-                  notifications.map(n => (
+                  (notifications || []).map(n => (
                     <div
                       key={n.id}
                       onClick={() => {

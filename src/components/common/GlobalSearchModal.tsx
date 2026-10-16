@@ -155,7 +155,7 @@ export const GlobalSearchModal: React.FC = () => {
                             <span className="font-semibold text-sm text-slate-900 group-hover:text-amber-700">{p.title}</span>
                             <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-amber-100 text-amber-800 font-bold">{p.projectCode}</span>
                           </div>
-                          <p className="text-xs text-slate-500">{p.customerName} • {p.capacityKw} kW • Stage: {p.currentStageKey.replace(/_/g, ' ')}</p>
+                          <p className="text-xs text-slate-500">{p.customerName} • {p.capacityKw} kW • Stage: {(p.currentStageKey || (p as any).current_stage_key || 'site_survey').replace(/_/g, ' ')}</p>
                         </div>
                         <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-amber-600 transition-colors" />
                       </div>

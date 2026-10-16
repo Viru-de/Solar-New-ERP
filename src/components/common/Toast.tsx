@@ -5,11 +5,11 @@ import { CheckCircle2, AlertCircle, Info, AlertTriangle, X } from 'lucide-react'
 export const ToastContainer: React.FC = () => {
   const { toasts, removeToast } = useApp();
 
-  if (toasts.length === 0) return null;
+  if (!toasts || toasts.length === 0) return null;
 
   return (
     <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
-      {toasts.map(toast => {
+      {(toasts || []).map(toast => {
         const getStyles = () => {
           switch (toast.type) {
             case 'success':

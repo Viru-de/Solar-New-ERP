@@ -3051,11 +3051,25 @@ class StorageService {
   private get<T>(key: string, defaultValue: T): T {
     try {
       const stored = localStorage.getItem(key);
-      if (!stored) {
+      if (!stored || stored === 'undefined' || stored === 'null') {
         localStorage.setItem(key, JSON.stringify(defaultValue));
         return defaultValue;
       }
-      return JSON.parse(stored) as T;
+      const parsed = JSON.parse(stored);
+      if (parsed === null || parsed === undefined) {
+        return defaultValue;
+      }
+      // If defaultValue is an array, ensure parsed is also an array
+      if (Array.isArray(defaultValue) && !Array.isArray(parsed)) {
+        return defaultValue;
+      }
+      // If defaultValue is a plain object, ensure parsed is also a non-array object
+      if (typeof defaultValue === 'object' && defaultValue !== null && !Array.isArray(defaultValue)) {
+        if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+          return defaultValue;
+        }
+      }
+      return parsed as T;
     } catch {
       return defaultValue;
     }
@@ -3103,13 +3117,68 @@ class StorageService {
       ] = results;
 
       if (customers.status === 'fulfilled' && Array.isArray(customers.value) && customers.value.length > 0) {
-        this.set(STORAGE_KEYS.CUSTOMERS, customers.value);
+        const mappedCustomers = customers.value.map((c: any) => ({
+          ...c,
+          id: c.id,
+          customerCode: c.customerCode || c.customer_code || c.id,
+          companyName: c.companyName || c.company_name || '',
+          customerType: c.customerType || c.customer_type || 'Commercial',
+          siteAddress: c.siteAddress || c.site_address || '',
+          gstNumber: c.gstNumber || c.gst_number || '',
+          electricityConsumerNo: c.electricityConsumerNo || c.electricity_consumer_no || '',
+          sanctionedLoadKw: Number(c.sanctionedLoadKw ?? c.sanctioned_load_kw ?? 0),
+          activeProjectId: c.activeProjectId || c.active_project_id || null,
+          status: c.status || 'ACTIVE'
+        }));
+        this.set(STORAGE_KEYS.CUSTOMERS, mappedCustomers);
       }
       if (leads.status === 'fulfilled' && Array.isArray(leads.value) && leads.value.length > 0) {
-        this.set(STORAGE_KEYS.LEADS, leads.value);
+        const mappedLeads = leads.value.map((l: any) => ({
+          ...l,
+          id: l.id,
+          customerName: l.customerName || l.customer_name || '',
+          companyName: l.companyName || l.company_name || '',
+          solarCapacityKw: Number(l.solarCapacityKw ?? l.solar_capacity_kw ?? 0),
+          estimatedValue: Number(l.estimatedValue ?? l.estimated_value ?? 0),
+          assignedSalespersonId: l.assignedSalespersonId || l.assigned_salesperson_id || '',
+          assignedSalespersonName: l.assignedSalespersonName || l.assigned_salesperson_name || '',
+          status: l.status || 'NEW'
+        }));
+        this.set(STORAGE_KEYS.LEADS, mappedLeads);
       }
       if (projects.status === 'fulfilled' && Array.isArray(projects.value) && projects.value.length > 0) {
-        this.set(STORAGE_KEYS.PROJECTS, projects.value);
+        const currentProjects = this.getProjects();
+        const mergedProjects = projects.value.map((remoteProj: any) => {
+          const localMatch = currentProjects.find(p => p.id === remoteProj.id || p.projectCode === (remoteProj.projectCode || remoteProj.project_code));
+          const initMatch = initialProjects.find(p => p.id === remoteProj.id || p.projectCode === (remoteProj.projectCode || remoteProj.project_code));
+          
+          let stages = (Array.isArray(remoteProj.stages) && remoteProj.stages.length > 0)
+            ? remoteProj.stages
+            : (localMatch?.stages && Array.isArray(localMatch.stages) && localMatch.stages.length > 0)
+              ? localMatch.stages
+              : (initMatch?.stages && Array.isArray(initMatch.stages) && initMatch.stages.length > 0)
+                ? initMatch.stages
+                : JSON.parse(JSON.stringify(initialProjects[0].stages));
+
+          return {
+            ...(initMatch || {}),
+            ...(localMatch || {}),
+            ...remoteProj,
+            id: remoteProj.id || localMatch?.id || initMatch?.id,
+            projectCode: remoteProj.projectCode || remoteProj.project_code || localMatch?.projectCode || initMatch?.projectCode,
+            customerId: remoteProj.customerId || remoteProj.customer_id || localMatch?.customerId || initMatch?.customerId,
+            customerName: remoteProj.customerName || remoteProj.customer_name || localMatch?.customerName || initMatch?.customerName,
+            title: remoteProj.title || localMatch?.title || initMatch?.title || 'Solar Project',
+            capacityKw: Number(remoteProj.capacityKw ?? remoteProj.capacity_kw ?? localMatch?.capacityKw ?? initMatch?.capacityKw ?? 0),
+            totalValue: Number(remoteProj.totalValue ?? remoteProj.total_value ?? localMatch?.totalValue ?? initMatch?.totalValue ?? 0),
+            status: remoteProj.status || localMatch?.status || initMatch?.status || 'PLANNING',
+            currentStageKey: remoteProj.currentStageKey || remoteProj.current_stage_key || localMatch?.currentStageKey || initMatch?.currentStageKey || 'site_survey',
+            completionPercentage: Number(remoteProj.completionPercentage ?? remoteProj.completion_percentage ?? localMatch?.completionPercentage ?? initMatch?.completionPercentage ?? 0),
+            progressPercentage: Number(remoteProj.completionPercentage ?? remoteProj.completion_percentage ?? localMatch?.completionPercentage ?? initMatch?.completionPercentage ?? 0),
+            stages
+          };
+        });
+        this.set(STORAGE_KEYS.PROJECTS, mergedProjects);
       }
       if (quotations.status === 'fulfilled' && Array.isArray(quotations.value) && quotations.value.length > 0) {
         this.set(STORAGE_KEYS.QUOTATIONS, quotations.value);
@@ -3153,8 +3222,8 @@ class StorageService {
       if (warehouses.status === 'fulfilled' && Array.isArray(warehouses.value) && warehouses.value.length > 0) {
         this.set(STORAGE_KEYS.WAREHOUSES, warehouses.value);
       }
-      if (settings.status === 'fulfilled' && settings.value && typeof settings.value === 'object') {
-        this.set(STORAGE_KEYS.SETTINGS, settings.value);
+      if (settings.status === 'fulfilled' && settings.value && typeof settings.value === 'object' && !Array.isArray(settings.value) && Object.keys(settings.value).length > 0) {
+        this.set(STORAGE_KEYS.SETTINGS, { ...initialSettings, ...settings.value });
       }
       if (notifications.status === 'fulfilled' && Array.isArray(notifications.value) && notifications.value.length > 0) {
         this.set(STORAGE_KEYS.NOTIFICATIONS, notifications.value);
@@ -3482,14 +3551,39 @@ class StorageService {
   // --- Projects & Workflow Automation ---
   getProjects(): SolarProject[] {
     const rawProjects = this.get<SolarProject[]>(STORAGE_KEYS.PROJECTS, initialProjects);
+    if (!Array.isArray(rawProjects) || rawProjects.length === 0) {
+      return initialProjects;
+    }
     let mutated = false;
 
     // Self-healing integrity check:
     // A stage N cannot be COMPLETED/APPROVED unless all previous stages 0..N-1 are COMPLETED/APPROVED.
     // Ensure newly initialized projects never have stages 2..16 completed.
     const sanitized = rawProjects.map(project => {
+      if (!project) return null;
       let hasIncompletePriorStage = false;
       let stagesChanged = false;
+
+      // Ensure stages is ALWAYS an array with valid stages
+      if (!project.stages || !Array.isArray(project.stages) || project.stages.length === 0) {
+        const defaultMatch = initialProjects.find(
+          ip => ip.id === project.id || ip.projectCode === (project.projectCode || (project as any).project_code)
+        );
+        project.stages = defaultMatch?.stages
+          ? JSON.parse(JSON.stringify(defaultMatch.stages))
+          : JSON.parse(JSON.stringify(initialProjects[0].stages));
+        mutated = true;
+      }
+
+      // Normalise properties in case row came directly from MySQL
+      project.projectCode = project.projectCode || (project as any).project_code || project.id;
+      project.customerId = project.customerId || (project as any).customer_id || '';
+      project.customerName = project.customerName || (project as any).customer_name || '';
+      project.capacityKw = Number(project.capacityKw ?? (project as any).capacity_kw ?? 0);
+      project.totalValue = Number(project.totalValue ?? (project as any).total_value ?? 0);
+      project.currentStageKey = project.currentStageKey || (project as any).current_stage_key || 'site_survey';
+      project.completionPercentage = Number(project.completionPercentage ?? (project as any).completion_percentage ?? 0);
+      project.progressPercentage = Number(project.completionPercentage ?? (project as any).completion_percentage ?? 0);
 
       // Self-healing migration for multi-user project assignments:
       if (!project.assignedUsers || !Array.isArray(project.assignedUsers) || project.assignedUsers.length === 0) {
@@ -3514,7 +3608,9 @@ class StorageService {
         }
       }
 
-      const cleanedStages = project.stages.map((stage, idx) => {
+      const rawStages = Array.isArray(project.stages) ? project.stages : [];
+      const cleanedStages = rawStages.map((stage, idx) => {
+        if (!stage) return stage;
         if (idx === 0) {
           if (stage.status !== 'COMPLETED' && stage.status !== 'APPROVED') {
             hasIncompletePriorStage = true;
@@ -3532,12 +3628,14 @@ class StorageService {
               completedDate: undefined,
               approvedBy: undefined,
               approvalDate: undefined,
-              checklist: stage.checklist.map(c => ({
-                ...c,
-                completed: false,
-                completedAt: undefined,
-                completedBy: undefined
-              }))
+              checklist: Array.isArray(stage.checklist)
+                ? stage.checklist.map(c => ({
+                    ...c,
+                    completed: false,
+                    completedAt: undefined,
+                    completedBy: undefined
+                  }))
+                : []
             };
           }
         }
@@ -3547,12 +3645,12 @@ class StorageService {
         }
 
         return stage;
-      });
+      }).filter(Boolean);
 
-      if (stagesChanged) {
+      if (stagesChanged || cleanedStages.length !== rawStages.length) {
         mutated = true;
         const completedCount = cleanedStages.filter(s => s.status === 'COMPLETED' || s.status === 'APPROVED').length;
-        const completionPercentage = Math.round((completedCount / cleanedStages.length) * 100);
+        const completionPercentage = cleanedStages.length > 0 ? Math.round((completedCount / cleanedStages.length) * 100) : 0;
         return {
           ...project,
           stages: cleanedStages,
@@ -3561,14 +3659,17 @@ class StorageService {
         };
       }
 
-      return project;
-    });
+      return {
+        ...project,
+        stages: cleanedStages
+      };
+    }).filter(Boolean) as SolarProject[];
 
     if (mutated) {
       this.set(STORAGE_KEYS.PROJECTS, sanitized);
     }
 
-    return sanitized;
+    return sanitized.length > 0 ? sanitized : initialProjects;
   }
 
   getProjectById(id: string): SolarProject | undefined {
@@ -4227,17 +4328,20 @@ class StorageService {
   getRecentActivities(limit: number = 8): Array<{ id: string; action: string; details: string; userName: string; timestamp: string }> {
     const activities: Array<{ id: string; action: string; details: string; userName: string; timestamp: string }> = [];
     const projects = this.getProjects();
-    projects.forEach(p => {
-      p.stages.forEach(s => {
-        s.activities?.forEach((a, aIdx) => {
+    (projects || []).forEach(p => {
+      if (!p) return;
+      (p.stages || []).forEach(s => {
+        if (!s) return;
+        (s.activities || []).forEach((a, aIdx) => {
+          if (!a) return;
           // Guarantee unique key across any project, stage, or activity
           const uniqueId = a.id && a.id.startsWith(p.id) ? a.id : `${p.id}-${s.stageKey}-${a.id || aIdx}`;
           activities.push({
             id: uniqueId,
-            action: `${p.projectCode} • ${s.title}: ${a.action}`,
-            details: a.details || `${s.title} updated`,
-            userName: a.user,
-            timestamp: a.timestamp
+            action: `${p.projectCode || ''} • ${s.title || ''}: ${a.action || ''}`,
+            details: a.details || `${s.title || 'Stage'} updated`,
+            userName: a.user || 'System',
+            timestamp: a.timestamp || new Date().toISOString()
           });
         });
       });
@@ -4394,7 +4498,11 @@ class StorageService {
 
   // --- Settings ---
   getSettings(): SystemSettings {
-    const settings = this.get<SystemSettings>(STORAGE_KEYS.SETTINGS, initialSettings);
+    const raw = this.get<SystemSettings>(STORAGE_KEYS.SETTINGS, initialSettings);
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      return { ...initialSettings };
+    }
+    const settings = { ...initialSettings, ...raw };
     if (!settings.logoUrl) {
       settings.logoUrl = initialSettings.logoUrl || '/logo-dark.png';
     }
